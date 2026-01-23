@@ -1,0 +1,14 @@
+{
+  "Christian Vargas": {
+    "password_hash": "$pbkdf2-sha256$29000$13oPAWBsDcEYA2Bszdn7Hw$o4wV2tsitCIwReS/M6esdLFqlHIC6YV7ZsOUHNSORXE",
+    "friends": [],
+    "pending_requests": [],
+    "sent_requests": []
+  },
+  "Gabriel Vargas": {
+    "password_hash": "$pbkdf2-sha256$29000$mtMaw1gL4bzXmtNaay2lFA$/lfyZisMUH3qX1WBbp9Pnq02z5hAktCp8PUNrQXcjWg",
+    "friends": [],
+    "pending_requests": [],
+    "sent_requests": []
+  }
+}
