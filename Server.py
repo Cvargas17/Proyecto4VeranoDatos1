@@ -7,6 +7,47 @@ from passlib.hash import pbkdf2_sha256
 # Ruta para guardar los datos de usuarios
 DATA_FILE = "users_data.json"
 
+
+# ==================== ALGORITMO MERGE SORT ====================
+def merge_sort(arr):
+    """Implementación del algoritmo Merge Sort para ordenar listas"""
+    if len(arr) <= 1:
+        return arr
+    
+    # Dividir el array en dos mitades
+    mid = len(arr) // 2
+    left_half = arr[:mid]
+    right_half = arr[mid:]
+    
+    # Recursivamente ordenar ambas mitades
+    left_sorted = merge_sort(left_half)
+    right_sorted = merge_sort(right_half)
+    
+    # Combinar las mitades ordenadas
+    return merge(left_sorted, right_sorted)
+
+
+def merge(left, right):
+    """Combina dos listas ordenadas en una sola lista ordenada"""
+    result = []
+    i = j = 0
+    
+    # Comparar elementos y agregar el menor
+    while i < len(left) and j < len(right):
+        if left[i].lower() <= right[j].lower():  # Comparación case-insensitive
+            result.append(left[i])
+            i += 1
+        else:
+            result.append(right[j])
+            j += 1
+    
+    # Agregar elementos restantes
+    result.extend(left[i:])
+    result.extend(right[j:])
+    
+    return result
+
+
 class SocialNetworkServer:
     def __init__(self, host='localhost', port=5000):
         self.host = host
@@ -31,7 +72,9 @@ class SocialNetworkServer:
                             "password_hash": user_data["password_hash"],
                             "friends": set(user_data.get("friends", [])),
                             "pending_requests": set(user_data.get("pending_requests", [])),
-                            "sent_requests": set(user_data.get("sent_requests", []))
+                            "sent_requests": set(user_data.get("sent_requests", [])),
+                            "description": user_data.get("description", ""),
+                            "photo_url": user_data.get("photo_url", "")
                         }
                 print(f"[SERVER] Datos cargados: {len(self.users)} usuarios")
             except Exception as e:
@@ -46,7 +89,9 @@ class SocialNetworkServer:
                     "password_hash": user_data["password_hash"],
                     "friends": list(user_data["friends"]),
                     "pending_requests": list(user_data.get("pending_requests", [])),
-                    "sent_requests": list(user_data.get("sent_requests", []))
+                    "sent_requests": list(user_data.get("sent_requests", [])),
+                    "description": user_data.get("description", ""),
+                    "photo_url": user_data.get("photo_url", "")
                 }
             with open(DATA_FILE, 'w', encoding='utf-8') as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
@@ -152,6 +197,16 @@ class SocialNetworkServer:
             return self.get_network()
         elif action == "delete_account":
             return self.delete_account(current_user, client_address)
+        elif action == "search_users":
+            return self.search_users(request.get("query", ""))
+        elif action == "get_user_profile":
+            return self.get_user_profile(request.get("username"))
+        elif action == "update_profile":
+            return self.update_profile(current_user, request.get("description"), request.get("photo_url"))
+        elif action == "find_path":
+            return self.find_path(request.get("from_user"), request.get("to_user"))
+        elif action == "get_statistics":
+            return self.get_statistics()
         else:
             return {"status": "error", "message": f"Acción desconocida: {action}"}
     
@@ -182,7 +237,9 @@ class SocialNetworkServer:
                 "password_hash": password_hash,
                 "friends": set(),
                 "pending_requests": set(),
-                "sent_requests": set()
+                "sent_requests": set(),
+                "description": "",
+                "photo_url": ""
             }
             self.save_data()
         
@@ -359,10 +416,12 @@ class SocialNetworkServer:
         return {"status": "success", "message": f"Ya no eres amigo de '{friend_username}'"}
     
     def get_friends(self, current_user):
-        """Obtiene la lista de amigos del usuario actual"""
+        """Obtiene la lista de amigos del usuario actual, ordenada con Merge Sort"""
         with self.lock:
             friends = list(self.users[current_user]["friends"])
-        return {"status": "success", "friends": sorted(friends)}
+        # Ordenar usando Merge Sort
+        friends_sorted = merge_sort(friends)
+        return {"status": "success", "friends": friends_sorted}
     
     def get_all_users(self):
         """Obtiene todos los usuarios registrados"""
@@ -426,6 +485,135 @@ class SocialNetworkServer:
         
         print(f"[SERVER] Cuenta eliminada: {current_user}")
         return {"status": "success", "message": "Cuenta eliminada exitosamente", "logout": True}
+    
+    # ==================== BÚSQUEDA Y PERFIL ====================
+    
+    def search_users(self, query):
+        """Busca usuarios por nombre (nombre y apellido)"""
+        if not query or not query.strip():
+            return {"status": "error", "message": "Ingrese un término de búsqueda"}
+        
+        query = query.strip().lower()
+        with self.lock:
+            results = []
+            for username in self.users.keys():
+                if query in username.lower():
+                    results.append(username)
+        
+        return {"status": "success", "results": sorted(results)}
+    
+    def get_user_profile(self, username):
+        """Obtiene el perfil de un usuario"""
+        if not username:
+            return {"status": "error", "message": "Debe especificar un usuario"}
+        
+        with self.lock:
+            if username not in self.users:
+                return {"status": "error", "message": f"El usuario '{username}' no existe"}
+            
+            user_data = self.users[username]
+            profile = {
+                "username": username,
+                "friends_count": len(user_data["friends"]),
+                "friends": sorted(list(user_data["friends"])),
+                "description": user_data.get("description", ""),
+                "photo_url": user_data.get("photo_url", "")
+            }
+        
+        return {"status": "success", "profile": profile}
+    
+    def update_profile(self, current_user, description, photo_url):
+        """Actualiza el perfil del usuario actual"""
+        with self.lock:
+            if description is not None:
+                self.users[current_user]["description"] = description
+            if photo_url is not None:
+                self.users[current_user]["photo_url"] = photo_url
+            self.save_data()
+        
+        print(f"[SERVER] Perfil actualizado: {current_user}")
+        return {"status": "success", "message": "Perfil actualizado exitosamente"}
+    
+    def find_path(self, from_user, to_user):
+        """Busca un camino de amigos entre dos usuarios usando BFS"""
+        if not from_user or not to_user:
+            return {"status": "error", "message": "Debe especificar ambos usuarios"}
+        
+        with self.lock:
+            if from_user not in self.users:
+                return {"status": "error", "message": f"El usuario '{from_user}' no existe"}
+            if to_user not in self.users:
+                return {"status": "error", "message": f"El usuario '{to_user}' no existe"}
+            
+            # BFS para encontrar el camino más corto
+            if from_user == to_user:
+                return {"status": "success", "path": [from_user]}
+            
+            visited = set()
+            queue = [(from_user, [from_user])]  # (usuario_actual, camino_hasta_aquí)
+            
+            while queue:
+                current, path = queue.pop(0)
+                
+                if current in visited:
+                    continue
+                
+                visited.add(current)
+                
+                # Obtener amigos del usuario actual
+                friends = self.users[current]["friends"]
+                
+                for friend in friends:
+                    if friend == to_user:
+                        # ¡Encontramos el destino!
+                        return {"status": "success", "path": path + [friend]}
+                    
+                    if friend not in visited:
+                        queue.append((friend, path + [friend]))
+            
+            # No se encontró camino
+            return {"status": "success", "path": []}
+    
+    def get_statistics(self):
+        """Obtiene estadísticas de la red social"""
+        with self.lock:
+            if not self.users:
+                return {"status": "error", "message": "No hay usuarios en la red"}
+            
+            # Calcular cantidad de amigos por usuario
+            user_friends_count = {}
+            for username, user_data in self.users.items():
+                user_friends_count[username] = len(user_data["friends"])
+            
+            # Usuario con más amigos
+            max_friends_user = max(user_friends_count, key=user_friends_count.get)
+            max_friends_count = user_friends_count[max_friends_user]
+            
+            # Usuario con menos amigos
+            min_friends_user = min(user_friends_count, key=user_friends_count.get)
+            min_friends_count = user_friends_count[min_friends_user]
+            
+            # Promedio de amigos
+            total_friends = sum(user_friends_count.values())
+            total_users = len(self.users)
+            average_friends = total_friends / total_users if total_users > 0 else 0
+            
+            # Usuarios con más amigos (en caso de empate)
+            users_with_max = [u for u, c in user_friends_count.items() if c == max_friends_count]
+            users_with_min = [u for u, c in user_friends_count.items() if c == min_friends_count]
+        
+        return {
+            "status": "success",
+            "statistics": {
+                "max_friends_users": users_with_max,
+                "max_friends_count": max_friends_count,
+                "min_friends_users": users_with_min,
+                "min_friends_count": min_friends_count,
+                "average_friends": round(average_friends, 2),
+                "total_users": total_users,
+                "total_friendships": total_friends // 2  # Dividir entre 2 porque son bidireccionales
+            }
+        }
     
     def stop(self):
         """Detiene el servidor"""

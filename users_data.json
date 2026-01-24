@@ -1,14 +1,22 @@
 {
   "Christian Vargas": {
     "password_hash": "$pbkdf2-sha256$29000$13oPAWBsDcEYA2Bszdn7Hw$o4wV2tsitCIwReS/M6esdLFqlHIC6YV7ZsOUHNSORXE",
-    "friends": [],
+    "friends": [
+      "Gabriel Vargas"
+    ],
     "pending_requests": [],
-    "sent_requests": []
+    "sent_requests": [],
+    "description": "Buenas",
+    "photo_url": "C:/Users/Chris/OneDrive/Desktop/ben.JPG"
   },
   "Gabriel Vargas": {
     "password_hash": "$pbkdf2-sha256$29000$mtMaw1gL4bzXmtNaay2lFA$/lfyZisMUH3qX1WBbp9Pnq02z5hAktCp8PUNrQXcjWg",
-    "friends": [],
+    "friends": [
+      "Christian Vargas"
+    ],
     "pending_requests": [],
-    "sent_requests": []
+    "sent_requests": [],
+    "description": "",
+    "photo_url": ""
   }
 }

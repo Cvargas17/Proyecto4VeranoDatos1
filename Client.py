@@ -1,10 +1,21 @@
 import socket
 import json
 import tkinter as tk
-from tkinter import ttk, messagebox, scrolledtext
+from tkinter import ttk, messagebox, scrolledtext, filedialog
 import subprocess
 import os
 import tempfile
+import urllib.request
+import io
+import base64
+
+# Intentar importar PIL para manejo de imágenes
+try:
+    from PIL import Image, ImageTk
+    PIL_AVAILABLE = True
+except ImportError:
+    PIL_AVAILABLE = False
+    print("Advertencia: PIL/Pillow no está instalado. Las fotos de perfil se mostrarán como texto.")
 
 # Ruta de Graphviz
 GRAPHVIZ_PATH = r"C:\Program Files\Graphviz\bin"
@@ -144,6 +155,36 @@ class SocialNetworkClient:
             self.logged_in = False
             self.username = None
         return response
+    
+    # ==================== BÚSQUEDA Y PERFIL ====================
+    
+    def search_users(self, query):
+        """Busca usuarios por nombre"""
+        return self.send_request({"action": "search_users", "query": query})
+    
+    def get_user_profile(self, username):
+        """Obtiene el perfil de un usuario"""
+        return self.send_request({"action": "get_user_profile", "username": username})
+    
+    def update_profile(self, description=None, photo_url=None):
+        """Actualiza el perfil del usuario actual"""
+        return self.send_request({
+            "action": "update_profile",
+            "description": description,
+            "photo_url": photo_url
+        })
+    
+    def find_path(self, from_user, to_user):
+        """Busca un camino de amigos entre dos usuarios"""
+        return self.send_request({
+            "action": "find_path",
+            "from_user": from_user,
+            "to_user": to_user
+        })
+    
+    def get_statistics(self):
+        """Obtiene estadísticas de la red social"""
+        return self.send_request({"action": "get_statistics"})
 
 
 class LoginWindow:
@@ -302,6 +343,7 @@ class MainWindow:
         self.create_requests_tab()  # Nueva pestaña de solicitudes
         self.create_friends_tab()
         self.create_users_tab()
+        self.create_profile_tab()   # Nueva pestaña de perfil
         self.create_queries_tab()
         self.create_visualization_tab()
         self.create_network_tab()
@@ -480,20 +522,407 @@ class MainWindow:
         users_frame = ttk.Frame(self.notebook)
         self.notebook.add(users_frame, text="👤 Usuarios")
         
+        # Frame de búsqueda
+        search_frame = ttk.LabelFrame(users_frame, text="🔍 Buscar Usuarios", padding=10)
+        search_frame.pack(fill='x', padx=10, pady=10)
+        
+        ttk.Label(search_frame, text="Nombre:").grid(row=0, column=0, padx=5)
+        self.search_entry = ttk.Entry(search_frame, width=30, font=('Arial', 11))
+        self.search_entry.grid(row=0, column=1, padx=5, ipady=3)
+        self.search_entry.bind('<KeyRelease>', self.on_search_key)
+        
+        search_btn = tk.Button(search_frame, text="🔍 Buscar", command=self.do_search,
+                               bg='#2196F3', fg='white', font=('Arial', 10, 'bold'))
+        search_btn.grid(row=0, column=2, padx=10)
+        
+        clear_btn = tk.Button(search_frame, text="✖ Limpiar", command=self.clear_search,
+                              bg='#9E9E9E', fg='white', font=('Arial', 10))
+        clear_btn.grid(row=0, column=3, padx=5)
+        
         list_frame = ttk.LabelFrame(users_frame, text="Usuarios Registrados", padding=10)
         list_frame.pack(fill='both', expand=True, padx=10, pady=10)
         
         self.users_listbox = tk.Listbox(list_frame, font=('Consolas', 11))
         self.users_listbox.pack(fill='both', expand=True, side='left')
+        self.users_listbox.bind('<Double-Button-1>', self.on_user_double_click)
         scrollbar = ttk.Scrollbar(list_frame, orient='vertical', command=self.users_listbox.yview)
         scrollbar.pack(side='right', fill='y')
         self.users_listbox.config(yscrollcommand=scrollbar.set)
         
+        # Botón para ver perfil
+        btn_frame = ttk.Frame(users_frame)
+        btn_frame.pack(fill='x', padx=10, pady=5)
+        
+        view_profile_btn = tk.Button(btn_frame, text="👁️ Ver Perfil", command=self.view_selected_profile,
+                                     bg='#673AB7', fg='white', font=('Arial', 10, 'bold'))
+        view_profile_btn.pack(side='left', padx=5)
+        
         # Leyenda
         legend_frame = ttk.Frame(users_frame)
         legend_frame.pack(fill='x', padx=10, pady=5)
-        ttk.Label(legend_frame, text="Leyenda: ✓ = Amigo | ⏳ = Solicitud enviada | 📬 = Te envió solicitud", 
+        ttk.Label(legend_frame, text="Leyenda: ✓ = Amigo | ⏳ = Solicitud enviada | 📬 = Te envió solicitud | Doble clic = Ver perfil", 
                   font=('Arial', 9)).pack()
+    
+    def on_search_key(self, event):
+        """Búsqueda en tiempo real al escribir"""
+        query = self.search_entry.get().strip()
+        if len(query) >= 2:
+            self.do_search()
+        elif len(query) == 0:
+            self.refresh_data()
+    
+    def do_search(self):
+        """Realiza la búsqueda de usuarios"""
+        query = self.search_entry.get().strip()
+        if not query:
+            messagebox.showwarning("Advertencia", "Ingrese un nombre para buscar")
+            return
+        
+        response = self.client.search_users(query)
+        if response.get("status") == "success":
+            results = response.get("results", [])
+            
+            # Obtener datos de amigos y solicitudes para marcar
+            friends_response = self.client.get_friends()
+            friends = friends_response.get("friends", []) if friends_response.get("status") == "success" else []
+            
+            sent_response = self.client.get_sent_requests()
+            sent = sent_response.get("sent_requests", []) if sent_response.get("status") == "success" else []
+            
+            pending_response = self.client.get_pending_requests()
+            pending = pending_response.get("pending_requests", []) if pending_response.get("status") == "success" else []
+            
+            self.users_listbox.delete(0, tk.END)
+            if results:
+                for user in results:
+                    if user == self.username:
+                        self.users_listbox.insert(tk.END, f"👤 {user} (tú)")
+                    elif user in friends:
+                        self.users_listbox.insert(tk.END, f"👤 {user} ✓")
+                    elif user in sent:
+                        self.users_listbox.insert(tk.END, f"👤 {user} ⏳")
+                    elif user in pending:
+                        self.users_listbox.insert(tk.END, f"👤 {user} 📬")
+                    else:
+                        self.users_listbox.insert(tk.END, f"👤 {user}")
+            else:
+                self.users_listbox.insert(tk.END, "No se encontraron usuarios")
+        else:
+            messagebox.showerror("Error", response.get("message"))
+    
+    def clear_search(self):
+        """Limpia la búsqueda y muestra todos los usuarios"""
+        self.search_entry.delete(0, tk.END)
+        self.refresh_data()
+    
+    def on_user_double_click(self, event):
+        """Abre el perfil al hacer doble clic en un usuario"""
+        self.view_selected_profile()
+    
+    def view_selected_profile(self):
+        """Muestra el perfil del usuario seleccionado"""
+        selection = self.users_listbox.curselection()
+        if not selection:
+            messagebox.showwarning("Advertencia", "Seleccione un usuario")
+            return
+        
+        user_text = self.users_listbox.get(selection[0])
+        # Extraer nombre de usuario quitando emoji y marcadores
+        username = user_text.replace("👤 ", "").split(" ")[0]
+        if "(tú)" in user_text:
+            username = user_text.replace("👤 ", "").replace(" (tú)", "")
+        elif "✓" in user_text:
+            username = user_text.replace("👤 ", "").replace(" ✓", "")
+        elif "⏳" in user_text:
+            username = user_text.replace("👤 ", "").replace(" ⏳", "")
+        elif "📬" in user_text:
+            username = user_text.replace("👤 ", "").replace(" 📬", "")
+        else:
+            username = user_text.replace("👤 ", "").strip()
+        
+        self.show_user_profile_window(username)
+    
+    def show_user_profile_window(self, username):
+        """Muestra una ventana con el perfil del usuario"""
+        response = self.client.get_user_profile(username)
+        if response.get("status") != "success":
+            messagebox.showerror("Error", response.get("message"))
+            return
+        
+        profile = response.get("profile", {})
+        
+        # Crear ventana de perfil
+        profile_window = tk.Toplevel(self.root)
+        profile_window.title(f"Perfil de {username}")
+        profile_window.geometry("450x550")
+        profile_window.resizable(False, False)
+        
+        # Frame principal
+        main_frame = ttk.Frame(profile_window, padding=20)
+        main_frame.pack(fill='both', expand=True)
+        
+        # Foto de perfil
+        photo_frame = ttk.Frame(main_frame)
+        photo_frame.pack(pady=10)
+        
+        photo_url = profile.get("photo_url", "")
+        self.display_profile_photo(photo_frame, photo_url, size=150)
+        
+        # Nombre de usuario
+        ttk.Label(main_frame, text=f"👤 {username}", font=('Arial', 18, 'bold')).pack(pady=10)
+        
+        # Estadísticas
+        stats_frame = ttk.Frame(main_frame)
+        stats_frame.pack(pady=10)
+        
+        friends_count = profile.get("friends_count", 0)
+        ttk.Label(stats_frame, text=f"👥 {friends_count} amigo(s)", font=('Arial', 12)).pack()
+        
+        # Descripción
+        desc_frame = ttk.LabelFrame(main_frame, text="📝 Descripción", padding=10)
+        desc_frame.pack(fill='x', pady=10)
+        
+        description = profile.get("description", "")
+        if description:
+            desc_label = ttk.Label(desc_frame, text=description, font=('Arial', 11), wraplength=380)
+        else:
+            desc_label = ttk.Label(desc_frame, text="(Sin descripción)", font=('Arial', 11, 'italic'), foreground='gray')
+        desc_label.pack(pady=5)
+        
+        # Lista de amigos
+        friends_frame = ttk.LabelFrame(main_frame, text="👥 Amigos", padding=10)
+        friends_frame.pack(fill='both', expand=True, pady=10)
+        
+        friends = profile.get("friends", [])
+        if friends:
+            friends_listbox = tk.Listbox(friends_frame, font=('Consolas', 10), height=6)
+            friends_listbox.pack(fill='both', expand=True, side='left')
+            scrollbar = ttk.Scrollbar(friends_frame, orient='vertical', command=friends_listbox.yview)
+            scrollbar.pack(side='right', fill='y')
+            friends_listbox.config(yscrollcommand=scrollbar.set)
+            for friend in friends:
+                friends_listbox.insert(tk.END, f"  👤 {friend}")
+        else:
+            ttk.Label(friends_frame, text="(Sin amigos aún)", font=('Arial', 10, 'italic'), foreground='gray').pack()
+        
+        # Verificar si es amigo y mostrar botón
+        if username != self.username:
+            btn_frame = ttk.Frame(main_frame)
+            btn_frame.pack(pady=10)
+            
+            are_friends_response = self.client.are_friends(username)
+            if are_friends_response.get("status") == "success" and are_friends_response.get("are_friends"):
+                # Ya son amigos - mostrar botón para eliminar amistad
+                ttk.Label(btn_frame, text="✓ Son amigos", foreground='green', font=('Arial', 11, 'bold')).pack(pady=5)
+                remove_btn = tk.Button(btn_frame, text="❌ Eliminar amistad", 
+                                       command=lambda: self.remove_friend_from_profile(username, profile_window),
+                                       bg='#f44336', fg='white', font=('Arial', 10, 'bold'))
+                remove_btn.pack()
+            else:
+                # Verificar si ya se envió solicitud
+                sent_response = self.client.get_sent_requests()
+                sent = sent_response.get("sent_requests", []) if sent_response.get("status") == "success" else []
+                
+                pending_response = self.client.get_pending_requests()
+                pending = pending_response.get("pending_requests", []) if pending_response.get("status") == "success" else []
+                
+                if username in sent:
+                    ttk.Label(btn_frame, text="⏳ Solicitud enviada", foreground='orange', font=('Arial', 11)).pack()
+                elif username in pending:
+                    accept_btn = tk.Button(btn_frame, text="✅ Aceptar solicitud", 
+                                           command=lambda: self.accept_from_profile(username, profile_window),
+                                           bg='#4CAF50', fg='white', font=('Arial', 10, 'bold'))
+                    accept_btn.pack()
+                else:
+                    add_btn = tk.Button(btn_frame, text="➕ Enviar solicitud de amistad", 
+                                        command=lambda: self.send_request_from_profile(username, profile_window),
+                                        bg='#2196F3', fg='white', font=('Arial', 10, 'bold'))
+                    add_btn.pack()
+        
+        # Botón cerrar
+        tk.Button(main_frame, text="Cerrar", command=profile_window.destroy,
+                  font=('Arial', 10), padx=20, pady=5).pack(pady=10)
+    
+    def display_profile_photo(self, frame, url_or_path, size=100):
+        """Muestra la foto de perfil desde una URL o archivo local"""
+        photo_label = ttk.Label(frame)
+        photo_label.pack()
+        
+        if url_or_path and url_or_path.strip() and PIL_AVAILABLE:
+            try:
+                # Verificar si es un archivo local o URL
+                if os.path.isfile(url_or_path):
+                    # Es un archivo local
+                    image = Image.open(url_or_path)
+                elif url_or_path.startswith(('http://', 'https://')):
+                    # Es una URL
+                    with urllib.request.urlopen(url_or_path, timeout=5) as response:
+                        image_data = response.read()
+                    image = Image.open(io.BytesIO(image_data))
+                else:
+                    # Podría ser una ruta relativa o inválida
+                    raise Exception("Ruta no válida")
+                
+                image = image.resize((size, size), Image.Resampling.LANCZOS)
+                
+                photo = ImageTk.PhotoImage(image)
+                photo_label.config(image=photo)
+                photo_label.image = photo  # Mantener referencia
+            except Exception as e:
+                # Si falla, mostrar placeholder
+                photo_label.config(text="📷", font=('Arial', 40))
+        elif url_or_path and url_or_path.strip() and not PIL_AVAILABLE:
+            # PIL no disponible, mostrar indicador con URL
+            photo_label.config(text="🖼️", font=('Arial', 40))
+            url_label = ttk.Label(frame, text="(Foto configurada)", font=('Arial', 9), foreground='gray')
+            url_label.pack()
+        else:
+            # Sin foto, mostrar placeholder
+            photo_label.config(text="📷", font=('Arial', 40))
+    
+    def send_request_from_profile(self, username, window):
+        """Envía solicitud de amistad desde la ventana de perfil"""
+        response = self.client.send_friend_request(username)
+        if response.get("status") == "success":
+            messagebox.showinfo("Éxito", response.get("message"))
+            window.destroy()
+            self.refresh_data()
+        else:
+            messagebox.showerror("Error", response.get("message"))
+    
+    def accept_from_profile(self, username, window):
+        """Acepta solicitud desde la ventana de perfil"""
+        response = self.client.accept_friend_request(username)
+        if response.get("status") == "success":
+            messagebox.showinfo("Éxito", response.get("message"))
+            window.destroy()
+            self.refresh_data()
+        else:
+            messagebox.showerror("Error", response.get("message"))
+    
+    def remove_friend_from_profile(self, username, window):
+        """Elimina amistad desde la ventana de perfil"""
+        if messagebox.askyesno("Confirmar", f"¿Eliminar a '{username}' de tus amigos?"):
+            response = self.client.remove_friend(username)
+            if response.get("status") == "success":
+                messagebox.showinfo("Éxito", response.get("message"))
+                window.destroy()
+                self.refresh_data()
+            else:
+                messagebox.showerror("Error", response.get("message"))
+    
+    # ==================== PESTAÑA DE MI PERFIL ====================
+    def create_profile_tab(self):
+        profile_frame = ttk.Frame(self.notebook)
+        self.notebook.add(profile_frame, text="🪪 Mi Perfil")
+        
+        # Frame principal
+        main_frame = ttk.Frame(profile_frame, padding=20)
+        main_frame.pack(fill='both', expand=True)
+        
+        # Foto de perfil
+        self.my_photo_frame = ttk.LabelFrame(main_frame, text="📷 Foto de Perfil", padding=10)
+        self.my_photo_frame.pack(fill='x', padx=10, pady=10)
+        
+        self.photo_display_frame = ttk.Frame(self.my_photo_frame)
+        self.photo_display_frame.pack(pady=10)
+        
+        ttk.Label(self.my_photo_frame, text="URL o ruta de la imagen:").pack(anchor='w')
+        self.photo_url_entry = ttk.Entry(self.my_photo_frame, width=60, font=('Arial', 10))
+        self.photo_url_entry.pack(fill='x', pady=5, ipady=3)
+        
+        photo_btn_frame = ttk.Frame(self.my_photo_frame)
+        photo_btn_frame.pack(fill='x', pady=5)
+        
+        tk.Button(photo_btn_frame, text="📁 Seleccionar Archivo", command=self.select_photo_file,
+                  bg='#2196F3', fg='white', font=('Arial', 9)).pack(side='left', padx=5)
+        
+        tk.Button(photo_btn_frame, text="🔄 Previsualizar", command=self.preview_photo,
+                  bg='#9E9E9E', fg='white', font=('Arial', 9)).pack(side='left', padx=5)
+        
+        # Descripción
+        desc_frame = ttk.LabelFrame(main_frame, text="📝 Descripción / Bio", padding=10)
+        desc_frame.pack(fill='x', padx=10, pady=10)
+        
+        self.description_text = tk.Text(desc_frame, height=4, font=('Arial', 11), wrap='word')
+        self.description_text.pack(fill='x', pady=5)
+        
+        # Estadísticas
+        self.my_stats_frame = ttk.LabelFrame(main_frame, text="📊 Estadísticas", padding=10)
+        self.my_stats_frame.pack(fill='x', padx=10, pady=10)
+        
+        self.my_friends_count_label = ttk.Label(self.my_stats_frame, text="👥 Amigos: 0", font=('Arial', 12))
+        self.my_friends_count_label.pack(anchor='w')
+        
+        # Botón guardar
+        save_btn = tk.Button(main_frame, text="💾 Guardar Perfil", command=self.save_profile,
+                             bg='#4CAF50', fg='white', font=('Arial', 12, 'bold'), padx=30, pady=10)
+        save_btn.pack(pady=20)
+        
+        # Cargar datos actuales del perfil
+        self.load_my_profile()
+    
+    def load_my_profile(self):
+        """Carga los datos del perfil del usuario actual"""
+        response = self.client.get_user_profile(self.username)
+        if response.get("status") == "success":
+            profile = response.get("profile", {})
+            
+            # Actualizar campos
+            self.photo_url_entry.delete(0, tk.END)
+            self.photo_url_entry.insert(0, profile.get("photo_url", ""))
+            
+            self.description_text.delete(1.0, tk.END)
+            self.description_text.insert(tk.END, profile.get("description", ""))
+            
+            friends_count = profile.get("friends_count", 0)
+            self.my_friends_count_label.config(text=f"👥 Amigos: {friends_count}")
+            
+            # Mostrar foto actual
+            self.preview_photo()
+    
+    def select_photo_file(self):
+        """Abre un diálogo para seleccionar una imagen local"""
+        filetypes = [
+            ("Imágenes", "*.png *.jpg *.jpeg *.gif *.bmp *.webp"),
+            ("PNG", "*.png"),
+            ("JPEG", "*.jpg *.jpeg"),
+            ("GIF", "*.gif"),
+            ("Todos los archivos", "*.*")
+        ]
+        
+        filepath = filedialog.askopenfilename(
+            title="Seleccionar imagen de perfil",
+            filetypes=filetypes
+        )
+        
+        if filepath:
+            # Poner la ruta en el campo de entrada
+            self.photo_url_entry.delete(0, tk.END)
+            self.photo_url_entry.insert(0, filepath)
+            # Previsualizar automáticamente
+            self.preview_photo()
+    
+    def preview_photo(self):
+        """Previsualiza la foto de perfil"""
+        # Limpiar frame de foto
+        for widget in self.photo_display_frame.winfo_children():
+            widget.destroy()
+        
+        url = self.photo_url_entry.get().strip()
+        self.display_profile_photo(self.photo_display_frame, url, size=120)
+    
+    def save_profile(self):
+        """Guarda los cambios del perfil"""
+        description = self.description_text.get(1.0, tk.END).strip()
+        photo_url = self.photo_url_entry.get().strip()
+        
+        response = self.client.update_profile(description=description, photo_url=photo_url)
+        if response.get("status") == "success":
+            messagebox.showinfo("Éxito", "Perfil actualizado correctamente")
+            self.preview_photo()
+        else:
+            messagebox.showerror("Error", response.get("message"))
     
     # ==================== PESTAÑA DE CONSULTAS ====================
     def create_queries_tab(self):
@@ -502,21 +931,36 @@ class MainWindow:
         
         # Amigos en común
         mutual_frame = ttk.LabelFrame(queries_frame, text="Amigos en Común", padding=10)
-        mutual_frame.pack(fill='x', padx=10, pady=10)
+        mutual_frame.pack(fill='x', padx=10, pady=5)
         
         ttk.Label(mutual_frame, text="Con usuario:").grid(row=0, column=0, padx=5)
         self.mutual_combo = ttk.Combobox(mutual_frame, width=25, state="readonly")
         self.mutual_combo.grid(row=0, column=1, padx=5)
         ttk.Button(mutual_frame, text="Buscar", command=self.show_mutual_friends).grid(row=0, column=2, padx=5)
         
-        # Verificar amistad
-        check_frame = ttk.LabelFrame(queries_frame, text="Verificar Amistad", padding=10)
-        check_frame.pack(fill='x', padx=10, pady=10)
+        # Buscar camino entre usuarios
+        path_frame = ttk.LabelFrame(queries_frame, text="🛤️ Buscar Camino de Amigos", padding=10)
+        path_frame.pack(fill='x', padx=10, pady=5)
         
-        ttk.Label(check_frame, text="¿Soy amigo de:").grid(row=0, column=0, padx=5)
-        self.check_combo = ttk.Combobox(check_frame, width=25, state="readonly")
-        self.check_combo.grid(row=0, column=1, padx=5)
-        ttk.Button(check_frame, text="Verificar", command=self.check_friendship).grid(row=0, column=2, padx=5)
+        ttk.Label(path_frame, text="Desde:").grid(row=0, column=0, padx=5)
+        self.path_from_combo = ttk.Combobox(path_frame, width=20, state="readonly")
+        self.path_from_combo.grid(row=0, column=1, padx=5)
+        
+        ttk.Label(path_frame, text="Hasta:").grid(row=0, column=2, padx=5)
+        self.path_to_combo = ttk.Combobox(path_frame, width=20, state="readonly")
+        self.path_to_combo.grid(row=0, column=3, padx=5)
+        
+        path_btn = tk.Button(path_frame, text="🔍 Buscar Camino", command=self.find_friend_path,
+                             bg='#673AB7', fg='white', font=('Arial', 10, 'bold'))
+        path_btn.grid(row=0, column=4, padx=10)
+        
+        # Estadísticas de la red
+        stats_frame = ttk.LabelFrame(queries_frame, text="📊 Estadísticas de la Red", padding=10)
+        stats_frame.pack(fill='x', padx=10, pady=5)
+        
+        stats_btn = tk.Button(stats_frame, text="📊 Obtener Estadísticas", command=self.show_statistics,
+                              bg='#FF5722', fg='white', font=('Arial', 10, 'bold'))
+        stats_btn.pack(pady=5)
         
         # Resultados
         result_frame = ttk.LabelFrame(queries_frame, text="Resultados", padding=10)
@@ -545,20 +989,81 @@ class MainWindow:
         else:
             self.query_result.insert(tk.END, response.get("message"))
     
-    def check_friendship(self):
-        other = self.check_combo.get()
-        if not other:
-            messagebox.showwarning("Advertencia", "Seleccione un usuario")
+    def find_friend_path(self):
+        """Busca un camino de amigos entre dos usuarios"""
+        from_user = self.path_from_combo.get()
+        to_user = self.path_to_combo.get()
+        
+        if not from_user or not to_user:
+            messagebox.showwarning("Advertencia", "Seleccione ambos usuarios")
             return
         
-        response = self.client.are_friends(other)
+        if from_user == to_user:
+            messagebox.showwarning("Advertencia", "Seleccione dos usuarios diferentes")
+            return
+        
+        response = self.client.find_path(from_user, to_user)
         self.query_result.delete(1.0, tk.END)
         
         if response.get("status") == "success":
-            if response.get("are_friends"):
-                self.query_result.insert(tk.END, f"✅ SÍ eres amigo de {other}")
+            path = response.get("path", [])
+            if path:
+                self.query_result.insert(tk.END, f"✅ ¡SÍ existe un camino de amigos entre {from_user} y {to_user}!\n\n")
+                self.query_result.insert(tk.END, "Camino encontrado:\n\n")
+                
+                # Mostrar el camino de forma visual
+                path_str = ""
+                for i, user in enumerate(path):
+                    if i > 0:
+                        path_str += " → "
+                    path_str += f"👤 {user}"
+                
+                self.query_result.insert(tk.END, f"   {path_str}\n\n")
+                self.query_result.insert(tk.END, f"📊 Longitud del camino: {len(path)} usuarios ({len(path)-1} conexiones)")
             else:
-                self.query_result.insert(tk.END, f"❌ NO eres amigo de {other}")
+                self.query_result.insert(tk.END, f"❌ NO existe un camino de amigos entre {from_user} y {to_user}\n\n")
+                self.query_result.insert(tk.END, "Estos usuarios no están conectados en la red de amigos.")
+        else:
+            self.query_result.insert(tk.END, response.get("message"))
+    
+    def show_statistics(self):
+        """Muestra las estadísticas de la red social"""
+        response = self.client.get_statistics()
+        self.query_result.delete(1.0, tk.END)
+        
+        if response.get("status") == "success":
+            stats = response.get("statistics", {})
+            
+            self.query_result.insert(tk.END, "╔═══════════════════════════════════════════════════╗\n")
+            self.query_result.insert(tk.END, "║         📊 ESTADÍSTICAS DE LA RED SOCIAL          ║\n")
+            self.query_result.insert(tk.END, "╚═══════════════════════════════════════════════════╝\n\n")
+            
+            # Usuario(s) con más amigos
+            max_users = stats.get("max_friends_users", [])
+            max_count = stats.get("max_friends_count", 0)
+            self.query_result.insert(tk.END, "🏆 Usuario(s) con MÁS amigos:\n")
+            for user in max_users:
+                self.query_result.insert(tk.END, f"   👤 {user} → {max_count} amigo(s)\n")
+            self.query_result.insert(tk.END, "\n")
+            
+            # Usuario(s) con menos amigos
+            min_users = stats.get("min_friends_users", [])
+            min_count = stats.get("min_friends_count", 0)
+            self.query_result.insert(tk.END, "📉 Usuario(s) con MENOS amigos:\n")
+            for user in min_users:
+                self.query_result.insert(tk.END, f"   👤 {user} → {min_count} amigo(s)\n")
+            self.query_result.insert(tk.END, "\n")
+            
+            # Promedio de amigos
+            average = stats.get("average_friends", 0)
+            self.query_result.insert(tk.END, f"📊 Promedio de amigos por usuario: {average}\n\n")
+            
+            # Información adicional
+            total_users = stats.get("total_users", 0)
+            total_friendships = stats.get("total_friendships", 0)
+            self.query_result.insert(tk.END, "═══════════════════════════════════════════════════\n")
+            self.query_result.insert(tk.END, f"👥 Total de usuarios: {total_users}\n")
+            self.query_result.insert(tk.END, f"🤝 Total de amistades: {total_friendships}\n")
         else:
             self.query_result.insert(tk.END, response.get("message"))
     
@@ -762,13 +1267,17 @@ class MainWindow:
         self.send_request_combo['values'] = available_for_request
         self.remove_friend_combo['values'] = friends
         self.mutual_combo['values'] = [u for u in all_users if u != self.username]
-        self.check_combo['values'] = [u for u in all_users if u != self.username]
+        self.path_from_combo['values'] = all_users
+        self.path_to_combo['values'] = all_users
         
         # Actualizar título de pestaña de solicitudes
         if pending:
             self.notebook.tab(0, text=f"📬 Solicitudes ({len(pending)})")
         else:
             self.notebook.tab(0, text="📬 Solicitudes")
+        
+        # Actualizar estadísticas de mi perfil
+        self.my_friends_count_label.config(text=f"👥 Amigos: {len(friends)}")
         
         # Actualizar vista de red
         self.update_network_view()
