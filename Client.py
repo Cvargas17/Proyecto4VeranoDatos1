@@ -1,5 +1,6 @@
 import socket
 import json
+import ssl
 import tkinter as tk
 from tkinter import ttk, messagebox, scrolledtext, filedialog
 import subprocess
@@ -20,6 +21,9 @@ except ImportError:
 # Ruta de Graphviz
 GRAPHVIZ_PATH = r"C:\Program Files\Graphviz\bin"
 
+# Ruta del certificado SSL del servidor
+CERT_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "server.crt")
+
 
 class SocialNetworkClient:
     def __init__(self, host='localhost', port=5000):
@@ -31,12 +35,30 @@ class SocialNetworkClient:
         self.username = None
     
     def connect(self):
-        """Conecta al servidor"""
+        """Conecta al servidor usando SSL/TLS"""
         try:
-            self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            # Crear contexto SSL
+            ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+            
+            # Cargar certificado del servidor para verificación
+            if os.path.exists(CERT_FILE):
+                ssl_context.load_verify_locations(CERT_FILE)
+                ssl_context.check_hostname = False  # Para certificados autofirmados
+                ssl_context.verify_mode = ssl.CERT_REQUIRED
+            else:
+                # Si no hay certificado, aceptar cualquiera (solo desarrollo)
+                ssl_context.check_hostname = False
+                ssl_context.verify_mode = ssl.CERT_NONE
+                print("⚠️ Advertencia: Conectando sin verificar certificado del servidor")
+            
+            # Crear socket TCP y envolverlo con SSL
+            raw_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.socket = ssl_context.wrap_socket(raw_socket, server_hostname=self.host)
             self.socket.connect((self.host, self.port))
             self.connected = True
-            return True, "Conectado al servidor"
+            return True, "🔒 Conectado al servidor (conexión encriptada)"
+        except ssl.SSLError as ssl_err:
+            return False, f"Error SSL: {str(ssl_err)}"
         except ConnectionRefusedError:
             return False, "No se pudo conectar al servidor. ¿Está el servidor ejecutándose?"
         except Exception as e:
@@ -193,7 +215,7 @@ class LoginWindow:
         self.client = client
         self.on_login_success = on_login_success
         
-        self.root.title("Red Social - Iniciar Sesión")
+        self.root.title("SocialTEC - Iniciar Sesión")
         self.root.geometry("450x450")
         self.root.resizable(False, False)
         
@@ -205,10 +227,10 @@ class LoginWindow:
         main_frame.pack(fill='both', expand=True)
         
         # Título
-        title_label = ttk.Label(main_frame, text="🌐 Red Social", font=('Arial', 20, 'bold'))
+        title_label = ttk.Label(main_frame, text="🌐 SocialTEC", font=('Arial', 20, 'bold'))
         title_label.pack(pady=10)
         
-        subtitle = ttk.Label(main_frame, text="Cliente TCP con Solicitudes de Amistad", font=('Arial', 10))
+        subtitle = ttk.Label(main_frame, text="Red Social Segura con Conexión Encriptada", font=('Arial', 10))
         subtitle.pack()
         
         # Notebook para Login/Registro
@@ -319,7 +341,7 @@ class MainWindow:
         self.username = username
         self.on_logout = on_logout
         
-        self.root.title(f"Red Social - {username}")
+        self.root.title(f"SocialTEC - {username}")
         self.root.geometry("950x700")
         self.root.resizable(True, True)
         

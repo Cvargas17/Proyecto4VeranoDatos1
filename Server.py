@@ -2,10 +2,15 @@ import socket
 import threading
 import json
 import os
+import ssl
 from passlib.hash import pbkdf2_sha256
 
 # Ruta para guardar los datos de usuarios
 DATA_FILE = "users_data.json"
+
+# Rutas de certificados SSL
+CERT_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "server.crt")
+KEY_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "server.key")
 
 
 # ==================== ALGORITMO MERGE SORT ====================
@@ -100,26 +105,44 @@ class SocialNetworkServer:
             print(f"[SERVER] Error guardando datos: {e}")
     
     def start(self):
-        """Inicia el servidor"""
+        """Inicia el servidor con SSL/TLS"""
+        # Verificar que existan los certificados
+        if not os.path.exists(CERT_FILE) or not os.path.exists(KEY_FILE):
+            print("[SERVER] ❌ ERROR: Certificados SSL no encontrados.")
+            print("[SERVER] Ejecute 'python generate_certs.py' primero.")
+            return
+        
+        # Crear contexto SSL
+        self.ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        self.ssl_context.load_cert_chain(CERT_FILE, KEY_FILE)
+        
+        # Crear socket TCP
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.server_socket.bind((self.host, self.port))
         self.server_socket.listen(5)
         self.running = True
         
-        print(f"[SERVER] Servidor iniciado en {self.host}:{self.port}")
-        print("[SERVER] Esperando conexiones...")
+        print(f"[SERVER] 🔐 Servidor SSL iniciado en {self.host}:{self.port}")
+        print("[SERVER] ✅ Comunicación encriptada con TLS")
+        print("[SERVER] Esperando conexiones seguras...")
         
         while self.running:
             try:
                 client_socket, client_address = self.server_socket.accept()
-                print(f"[SERVER] Nueva conexión desde {client_address}")
-                client_thread = threading.Thread(
-                    target=self.handle_client,
-                    args=(client_socket, client_address)
-                )
-                client_thread.daemon = True
-                client_thread.start()
+                # Envolver socket con SSL
+                try:
+                    ssl_socket = self.ssl_context.wrap_socket(client_socket, server_side=True)
+                    print(f"[SERVER] 🔒 Conexión segura desde {client_address}")
+                    client_thread = threading.Thread(
+                        target=self.handle_client,
+                        args=(ssl_socket, client_address)
+                    )
+                    client_thread.daemon = True
+                    client_thread.start()
+                except ssl.SSLError as ssl_err:
+                    print(f"[SERVER] ⚠️ Error SSL con {client_address}: {ssl_err}")
+                    client_socket.close()
             except Exception as e:
                 if self.running:
                     print(f"[SERVER] Error: {e}")
@@ -625,8 +648,10 @@ class SocialNetworkServer:
 
 def main():
     print("=" * 50)
-    print("   SERVIDOR DE RED SOCIAL")
+    print("   SERVIDOR DE RED SOCIAL (SSL/TLS)")
     print("=" * 50)
+    print("🔐 Comunicación encriptada habilitada")
+    print()
     
     server = SocialNetworkServer(host='localhost', port=5000)
     
