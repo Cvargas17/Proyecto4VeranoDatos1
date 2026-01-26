@@ -13,7 +13,6 @@ CERT_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "server.crt
 KEY_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "server.key")
 
 
-# ==================== ALGORITMO MERGE SORT ====================
 def merge_sort(arr):
     """Implementación del algoritmo Merge Sort para ordenar listas"""
     if len(arr) <= 1:
@@ -233,7 +232,6 @@ class SocialNetworkServer:
         else:
             return {"status": "error", "message": f"Acción desconocida: {action}"}
     
-    # ==================== AUTENTICACIÓN ====================
     
     def register_user(self, request):
         """Registra un nuevo usuario"""
@@ -312,7 +310,6 @@ class SocialNetworkServer:
                 return {"status": "success", "message": "Sesión cerrada"}
         return {"status": "error", "message": "No hay sesión activa"}
     
-    # ==================== SOLICITUDES DE AMISTAD ====================
     
     def send_friend_request(self, from_user, to_user):
         """Envía una solicitud de amistad"""
@@ -419,7 +416,6 @@ class SocialNetworkServer:
         print(f"[SERVER] Solicitud cancelada: {current_user} -> {to_user}")
         return {"status": "success", "message": f"Solicitud a '{to_user}' cancelada"}
     
-    # ==================== GESTIÓN DE AMIGOS ====================
     
     def remove_friend(self, current_user, friend_username):
         """Elimina un amigo"""
@@ -509,7 +505,6 @@ class SocialNetworkServer:
         print(f"[SERVER] Cuenta eliminada: {current_user}")
         return {"status": "success", "message": "Cuenta eliminada exitosamente", "logout": True}
     
-    # ==================== BÚSQUEDA Y PERFIL ====================
     
     def search_users(self, query):
         """Busca usuarios por nombre (nombre y apellido)"""

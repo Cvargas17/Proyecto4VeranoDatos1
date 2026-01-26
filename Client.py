@@ -345,6 +345,12 @@ class MainWindow:
         self.root.geometry("950x700")
         self.root.resizable(True, True)
         
+        # Variables para almacenar datos localmente
+        self.all_users_cache = []
+        self.friends_cache = []
+        self.sent_cache = []
+        self.pending_cache = []
+        
         self.create_widgets()
         self.refresh_data()
     
@@ -586,51 +592,41 @@ class MainWindow:
                   font=('Arial', 9)).pack()
     
     def on_search_key(self, event):
-        """Búsqueda en tiempo real al escribir"""
-        query = self.search_entry.get().strip()
-        if len(query) >= 2:
-            self.do_search()
-        elif len(query) == 0:
-            self.refresh_data()
+        """Búsqueda en tiempo real al escribir (filtrado local)"""
+        self.filter_users_list()
     
     def do_search(self):
-        """Realiza la búsqueda de usuarios"""
-        query = self.search_entry.get().strip()
-        if not query:
-            messagebox.showwarning("Advertencia", "Ingrese un nombre para buscar")
-            return
+        """Realiza la búsqueda de usuarios (filtrado local)"""
+        self.filter_users_list()
+    
+    def filter_users_list(self):
+        """Filtra la lista de usuarios localmente según el texto de búsqueda"""
+        query = self.search_entry.get().strip().lower()
         
-        response = self.client.search_users(query)
-        if response.get("status") == "success":
-            results = response.get("results", [])
-            
-            # Obtener datos de amigos y solicitudes para marcar
-            friends_response = self.client.get_friends()
-            friends = friends_response.get("friends", []) if friends_response.get("status") == "success" else []
-            
-            sent_response = self.client.get_sent_requests()
-            sent = sent_response.get("sent_requests", []) if sent_response.get("status") == "success" else []
-            
-            pending_response = self.client.get_pending_requests()
-            pending = pending_response.get("pending_requests", []) if pending_response.get("status") == "success" else []
-            
-            self.users_listbox.delete(0, tk.END)
-            if results:
-                for user in results:
-                    if user == self.username:
-                        self.users_listbox.insert(tk.END, f"👤 {user} (tú)")
-                    elif user in friends:
-                        self.users_listbox.insert(tk.END, f"👤 {user} ✓")
-                    elif user in sent:
-                        self.users_listbox.insert(tk.END, f"👤 {user} ⏳")
-                    elif user in pending:
-                        self.users_listbox.insert(tk.END, f"👤 {user} 📬")
-                    else:
-                        self.users_listbox.insert(tk.END, f"👤 {user}")
-            else:
-                self.users_listbox.insert(tk.END, "No se encontraron usuarios")
+        # Usar los datos en caché
+        if query:
+            # Filtrar usuarios que contengan el texto de búsqueda
+            filtered_users = [u for u in self.all_users_cache if query in u.lower()]
         else:
-            messagebox.showerror("Error", response.get("message"))
+            # Mostrar todos los usuarios si no hay búsqueda
+            filtered_users = self.all_users_cache
+        
+        # Actualizar la lista
+        self.users_listbox.delete(0, tk.END)
+        if filtered_users:
+            for user in filtered_users:
+                if user == self.username:
+                    self.users_listbox.insert(tk.END, f"👤 {user} (tú)")
+                elif user in self.friends_cache:
+                    self.users_listbox.insert(tk.END, f"👤 {user} ✓")
+                elif user in self.sent_cache:
+                    self.users_listbox.insert(tk.END, f"👤 {user} ⏳")
+                elif user in self.pending_cache:
+                    self.users_listbox.insert(tk.END, f"👤 {user} 📬")
+                else:
+                    self.users_listbox.insert(tk.END, f"👤 {user}")
+        else:
+            self.users_listbox.insert(tk.END, "No se encontraron usuarios")
     
     def clear_search(self):
         """Limpia la búsqueda y muestra todos los usuarios"""
@@ -1249,6 +1245,12 @@ class MainWindow:
         sent_response = self.client.get_sent_requests()
         sent = sent_response.get("sent_requests", []) if sent_response.get("status") == "success" else []
         
+        # Guardar en caché para búsqueda local
+        self.all_users_cache = all_users
+        self.friends_cache = friends
+        self.sent_cache = sent
+        self.pending_cache = pending
+        
         # Actualizar listbox de solicitudes pendientes
         self.pending_listbox.delete(0, tk.END)
         for user in pending:
@@ -1271,19 +1273,8 @@ class MainWindow:
                                  and u not in sent
                                  and u not in pending]
         
-        # Actualizar listbox de usuarios
-        self.users_listbox.delete(0, tk.END)
-        for user in all_users:
-            if user == self.username:
-                self.users_listbox.insert(tk.END, f"👤 {user} (tú)")
-            elif user in friends:
-                self.users_listbox.insert(tk.END, f"👤 {user} ✓")
-            elif user in sent:
-                self.users_listbox.insert(tk.END, f"👤 {user} ⏳")
-            elif user in pending:
-                self.users_listbox.insert(tk.END, f"👤 {user} 📬")
-            else:
-                self.users_listbox.insert(tk.END, f"👤 {user}")
+        # Actualizar listbox de usuarios (respetando el filtro de búsqueda actual)
+        self.filter_users_list()
         
         # Actualizar combos
         self.send_request_combo['values'] = available_for_request

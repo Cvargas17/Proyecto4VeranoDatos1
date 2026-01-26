@@ -28,21 +28,6 @@ class SocialNetworkGUI:
         self.create_queries_tab()
         self.create_visualization_tab()
         self.create_network_view_tab()
-        
-        # Agregar algunos usuarios de ejemplo
-        self.load_example_data()
-    
-    def load_example_data(self):
-        """Carga datos de ejemplo para demostración"""
-        self.network.add_user("Alice")
-        self.network.add_user("Bob")
-        self.network.add_user("Carlos")
-        self.network.add_user("Diana")
-        self.network.add_friendship("Alice", "Bob")
-        self.network.add_friendship("Alice", "Carlos")
-        self.network.add_friendship("Bob", "Carlos")
-        self.network.add_friendship("Diana", "Alice")
-        self.update_user_lists()
     
     # ==================== PESTAÑA DE USUARIOS ====================
     def create_users_tab(self):
