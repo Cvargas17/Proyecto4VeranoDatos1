@@ -2,21 +2,136 @@
   "Christian Vargas": {
     "password_hash": "$pbkdf2-sha256$29000$13oPAWBsDcEYA2Bszdn7Hw$o4wV2tsitCIwReS/M6esdLFqlHIC6YV7ZsOUHNSORXE",
     "friends": [
-      "Gabriel Vargas"
+      "Gabriel Vargas",
+      "Ana Lopez",
+      "Maria Garcia"
     ],
     "pending_requests": [],
     "sent_requests": [],
-    "description": "Buenas",
+    "description": "Desarrollador de software y entusiasta de grafos",
     "photo_url": "https://static.wikia.nocookie.net/chainsaw-man/images/b/b0/Denji_Reze_Arc_anime_design.png/revision/latest?cb=20250324010006"
   },
   "Gabriel Vargas": {
     "password_hash": "$pbkdf2-sha256$29000$mtMaw1gL4bzXmtNaay2lFA$/lfyZisMUH3qX1WBbp9Pnq02z5hAktCp8PUNrQXcjWg",
     "friends": [
-      "Christian Vargas"
+      "Christian Vargas",
+      "Pedro Sanchez"
     ],
     "pending_requests": [],
     "sent_requests": [],
-    "description": "",
+    "description": "Estudiante de Ingeniería en Computación",
+    "photo_url": ""
+  },
+  "Ana Lopez": {
+    "password_hash": "$pbkdf2-sha256$29000$ANA12345LOPEZabcdefgh$o4wV2tsitCIwReS/M6esdLFqlHIC6YV7ZsOUHNSORXE",
+    "friends": [
+      "Christian Vargas",
+      "Maria Garcia",
+      "Pedro Sanchez",
+      "Luis Martinez",
+      "Elena Torres"
+    ],
+    "pending_requests": [],
+    "sent_requests": [],
+    "description": "Conectora social - Me encanta conocer gente nueva!",
+    "photo_url": ""
+  },
+  "Maria Garcia": {
+    "password_hash": "$pbkdf2-sha256$29000$MARIA123GARCIAabcdefg$lfyZisMUH3qX1WBbp9Pnq02z5hAktCp8PUNrQXcjWg",
+    "friends": [
+      "Christian Vargas",
+      "Ana Lopez",
+      "Carlos Ruiz"
+    ],
+    "pending_requests": [],
+    "sent_requests": [],
+    "description": "Diseñadora gráfica y artista digital",
+    "photo_url": ""
+  },
+  "Pedro Sanchez": {
+    "password_hash": "$pbkdf2-sha256$29000$PEDRO123SANCHEZabcdef$o4wV2tsitCIwReS/M6esdLFqlHIC6YV7ZsOUHNSORXE",
+    "friends": [
+      "Gabriel Vargas",
+      "Ana Lopez",
+      "Elena Torres"
+    ],
+    "pending_requests": [],
+    "sent_requests": [],
+    "description": "Ingeniero de datos",
+    "photo_url": ""
+  },
+  "Luis Martinez": {
+    "password_hash": "$pbkdf2-sha256$29000$LUIS1234MARTINEZabcde$lfyZisMUH3qX1WBbp9Pnq02z5hAktCp8PUNrQXcjWg",
+    "friends": [
+      "Ana Lopez",
+      "Roberto Gomez"
+    ],
+    "pending_requests": [],
+    "sent_requests": [],
+    "description": "Músico y compositor",
+    "photo_url": ""
+  },
+  "Carlos Ruiz": {
+    "password_hash": "$pbkdf2-sha256$29000$CARLOS12RUIZabcdefghi$o4wV2tsitCIwReS/M6esdLFqlHIC6YV7ZsOUHNSORXE",
+    "friends": [
+      "Maria Garcia",
+      "Diana Cruz"
+    ],
+    "pending_requests": [],
+    "sent_requests": [],
+    "description": "Chef profesional",
+    "photo_url": ""
+  },
+  "Elena Torres": {
+    "password_hash": "$pbkdf2-sha256$29000$ELENA123TORRESabcdefg$lfyZisMUH3qX1WBbp9Pnq02z5hAktCp8PUNrQXcjWg",
+    "friends": [
+      "Ana Lopez",
+      "Pedro Sanchez",
+      "Sofia Ramirez"
+    ],
+    "pending_requests": [],
+    "sent_requests": [],
+    "description": "Doctora en medicina general",
+    "photo_url": ""
+  },
+  "Roberto Gomez": {
+    "password_hash": "$pbkdf2-sha256$29000$ROBERTO1GOMEZabcdefgh$o4wV2tsitCIwReS/M6esdLFqlHIC6YV7ZsOUHNSORXE",
+    "friends": [
+      "Luis Martinez"
+    ],
+    "pending_requests": ["Fernando Diaz"],
+    "sent_requests": [],
+    "description": "Fotógrafo de naturaleza",
+    "photo_url": ""
+  },
+  "Diana Cruz": {
+    "password_hash": "$pbkdf2-sha256$29000$DIANA123CRUZabcdefghi$lfyZisMUH3qX1WBbp9Pnq02z5hAktCp8PUNrQXcjWg",
+    "friends": [
+      "Carlos Ruiz",
+      "Sofia Ramirez"
+    ],
+    "pending_requests": [],
+    "sent_requests": [],
+    "description": "Abogada especialista en derecho civil",
+    "photo_url": ""
+  },
+  "Sofia Ramirez": {
+    "password_hash": "$pbkdf2-sha256$29000$SOFIA123RAMIREZabcdef$o4wV2tsitCIwReS/M6esdLFqlHIC6YV7ZsOUHNSORXE",
+    "friends": [
+      "Elena Torres",
+      "Diana Cruz"
+    ],
+    "pending_requests": [],
+    "sent_requests": [],
+    "description": "Profesora de matemáticas",
+    "photo_url": ""
+  },
+  "Fernando Diaz": {
+    "password_hash": "$pbkdf2-sha256$29000$FERNANDO1DIAZabcdefgh$lfyZisMUH3qX1WBbp9Pnq02z5hAktCp8PUNrQXcjWg",
+    "friends": [],
+    "pending_requests": [],
+    "sent_requests": ["Roberto Gomez"],
+    "description": "Nuevo en la red - buscando amigos!",
     "photo_url": ""
   }
 }
